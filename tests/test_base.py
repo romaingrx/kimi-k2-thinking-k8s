@@ -3,6 +3,6 @@ def test_base():
 
 
 def test_import_module():
-    import __PYTHON_PROJECT_NAME__
+    import kimikthinkingks
 
-    assert __PYTHON_PROJECT_NAME__.WHO_AM_I == 42
+    assert kimikthinkingks.WHO_AM_I == 42

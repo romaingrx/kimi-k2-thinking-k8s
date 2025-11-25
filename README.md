@@ -1,6 +1,6 @@
-# __REPO_NAME__
+# kimi-k2-thinking-k8s
 
-> __REPO_DESCRIPTION__
+> 
 
 ## License
 
