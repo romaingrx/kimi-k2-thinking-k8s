@@ -1,4 +1,4 @@
-.github/workflows/template.yaml
+.kubeconfig.yml
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

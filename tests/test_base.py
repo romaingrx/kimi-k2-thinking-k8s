@@ -3,6 +3,6 @@ def test_base():
 
 
 def test_import_module():
-    import kimikthinkingks
+    import kimi_k2_thinking_k8s
 
-    assert kimikthinkingks.WHO_AM_I == 42
+    assert kimi_k2_thinking_k8s.WHO_AM_I == 42
