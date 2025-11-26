@@ -33,6 +33,10 @@ spec:
         - |
           # Install vLLM nightly with Kimi-K2 support
           pip install -U vllm --pre --extra-index-url https://wheels.vllm.ai/nightly
+          pip install opentelemetry-api \
+                      opentelemetry-sdk \
+                      opentelemetry-exporter-otlp \
+                      opentelemetry-instrumentation-fastapi
 
           # Use official vLLM multi-node serving script
           bash /vllm-workspace/examples/online_serving/multi-node-serving.sh leader \
@@ -44,8 +48,7 @@ spec:
           vllm serve moonshotai/Kimi-K2-Thinking \
             --host 0.0.0.0 \
             --port 8000 \
-            --tensor-parallel-size 8 \
-            --pipeline-parallel-size 2 \
+            --tensor-parallel-size 16 \
             --distributed-executor-backend ray \
             --enable-auto-tool-choice \
             --tool-call-parser kimi_k2 \
@@ -55,7 +58,9 @@ spec:
             --gpu-memory-utilization 0.90 \
             --max-num-batched-tokens 32768 \
             --swap-space 32 \
-            --max-num-seqs 256
+            --max-num-seqs 256 \
+            --otlp-traces-endpoint="grpc://jaeger-collector:4317"
+            # --enforce-eager # To remove when using it in production, just makes it faster to start the server
 
       ports:
         - containerPort: 8000
@@ -85,31 +90,30 @@ spec:
           mountPath: /root/.cache/huggingface
 
       env:
-        # vLLM host IP for Ray (CRITICAL for multi-node)
         - name: VLLM_HOST_IP
           value: "10.15.35.65" # g327 IP
 
-        # GPU configuration
         - name: CUDA_VISIBLE_DEVICES
           value: "0,1,2,3,4,5,6,7"
-
-        # NCCL configuration - DISABLE InfiniBand for initial testing
         - name: NCCL_DEBUG
           value: "INFO"
-        - name: NCCL_IB_DISABLE
-          value: "1"
         - name: NCCL_SOCKET_IFNAME
           value: "enp157s0f0np0" # Use actual interface
         - name: GLOO_SOCKET_IFNAME
           value: "enp157s0f0np0"
 
-        # Ray configuration
         - name: RAY_DEDUP_LOGS
           value: "0"
 
-        # Hugging Face cache
         - name: HF_HOME
           value: "/root/.cache/huggingface"
+
+        - name: OTEL_SERVICE_NAME
+          value: "kimi-k2-thinking"
+        - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+          value: "grpc://jaeger-collector:4317"
+        - name: OTEL_EXPORTER_OTLP_TRACES_INSECURE
+          value: "true"
 
   volumes:
     - name: dshm

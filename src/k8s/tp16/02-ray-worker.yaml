@@ -31,10 +31,8 @@ spec:
         - /bin/bash
         - -c
         - |
-          # Install vLLM nightly with Kimi-K2 support
           pip install -U vllm --pre --extra-index-url https://wheels.vllm.ai/nightly
 
-          # Use official vLLM multi-node serving script
           bash /vllm-workspace/examples/online_serving/multi-node-serving.sh worker \
             --ray_address=$RAY_HEAD_IP \
             --ray_port=6379 \
@@ -57,33 +55,24 @@ spec:
           mountPath: /root/.cache/huggingface
 
       env:
-        # vLLM host IP for Ray (CRITICAL for multi-node)
         - name: VLLM_HOST_IP
           value: "10.15.35.73" # g328 IP
 
-        # Ray head address (g327 node IP)
         - name: RAY_HEAD_IP
-          value: "10.15.35.65"
+          value: "10.15.35.65" # g327 IP
 
-        # GPU configuration
         - name: CUDA_VISIBLE_DEVICES
           value: "0,1,2,3,4,5,6,7"
-
-        # NCCL configuration - DISABLE InfiniBand for initial testing
         - name: NCCL_DEBUG
           value: "INFO"
-        - name: NCCL_IB_DISABLE
-          value: "1"
         - name: NCCL_SOCKET_IFNAME
-          value: "enp157s0f0np0" # Use actual interface
+          value: "enp157s0f0np0"
         - name: GLOO_SOCKET_IFNAME
           value: "enp157s0f0np0"
 
-        # Ray configuration
         - name: RAY_DEDUP_LOGS
           value: "0"
 
-        # Hugging Face cache
         - name: HF_HOME
           value: "/root/.cache/huggingface"
 
