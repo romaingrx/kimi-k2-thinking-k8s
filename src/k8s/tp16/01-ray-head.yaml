@@ -31,36 +31,36 @@ spec:
         - /bin/bash
         - -c
         - |
-          # Install vLLM nightly with Kimi-K2 support
+          # TODO(romaingrx): clunky way of doing that, we should have a docker image for this to be reproducible or pin all versions
           pip install -U vllm --pre --extra-index-url https://wheels.vllm.ai/nightly
           pip install opentelemetry-api \
                       opentelemetry-sdk \
                       opentelemetry-exporter-otlp \
                       opentelemetry-instrumentation-fastapi
 
-          # Use official vLLM multi-node serving script
           bash /vllm-workspace/examples/online_serving/multi-node-serving.sh leader \
             --ray_cluster_size=2 \
             --ray_port=6379 \
             --ray_init_timeout=600
 
-          # Start vLLM server with TP=16 (all GPUs) for maximum throughput
           vllm serve moonshotai/Kimi-K2-Thinking \
             --host 0.0.0.0 \
             --port 8000 \
             --tensor-parallel-size 16 \
+            --decode-context-parallel-size 16 \
             --distributed-executor-backend ray \
             --enable-auto-tool-choice \
             --tool-call-parser kimi_k2 \
             --reasoning-parser kimi_k2 \
             --trust-remote-code \
-            --max-model-len 32768 \
-            --gpu-memory-utilization 0.95 \
+            --dtype bfloat16 \
+            --max-model-len 65536 \
+            --gpu-memory-utilization 0.92 \
             --max-num-batched-tokens 131072 \
             --enable-chunked-prefill \
             --max-num-seqs 512 \
-            --disable-log-requests \
-            --otlp-traces-endpoint="grpc://jaeger-collector.monitoring.svc.cluster.local:4317"
+            --otlp-traces-endpoint="grpc://jaeger-collector.monitoring.svc.cluster.local:4317" \
+            --collect-detailed-traces all
 
       ports:
         - containerPort: 8000
@@ -100,7 +100,7 @@ spec:
         - name: NCCL_IB_DISABLE
           value: "0"
         - name: NCCL_SOCKET_IFNAME
-          value: "enp157s0f0np0" # Use actual interface
+          value: "enp157s0f0np0"
         - name: GLOO_SOCKET_IFNAME
           value: "enp157s0f0np0"
 
@@ -109,6 +109,12 @@ spec:
 
         - name: HF_HOME
           value: "/root/.cache/huggingface"
+
+        # PyTorch/CUDA optimizations
+        - name: PYTORCH_CUDA_ALLOC_CONF
+          value: "expandable_segments:True"
+        - name: CUDA_LAUNCH_BLOCKING
+          value: "0"
 
         - name: OTEL_SERVICE_NAME
           value: "kimi-k2-thinking"
