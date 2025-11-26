@@ -7,7 +7,7 @@ metadata:
     app: ray-vllm
     role: head
 spec:
-  # Pin to g327
+  # Pin to g258
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -16,7 +16,7 @@ spec:
               - key: kubernetes.io/hostname
                 operator: In
                 values:
-                  - g327
+                  - g258
 
   # Use host network for optimal InfiniBand performance
   hostNetwork: true
@@ -38,6 +38,11 @@ spec:
                       opentelemetry-exporter-otlp \
                       opentelemetry-instrumentation-fastapi
 
+          # For debugging the IB interfaces
+          # apt-get update && apt-get install -y infiniband-diags perftest
+          # tail -f /dev/null
+
+
           bash /vllm-workspace/examples/online_serving/multi-node-serving.sh leader \
             --ray_cluster_size=2 \
             --ray_port=6379 \
@@ -47,20 +52,21 @@ spec:
             --host 0.0.0.0 \
             --port 8000 \
             --tensor-parallel-size 16 \
-            --decode-context-parallel-size 16 \
             --distributed-executor-backend ray \
             --enable-auto-tool-choice \
             --tool-call-parser kimi_k2 \
             --reasoning-parser kimi_k2 \
             --trust-remote-code \
             --dtype bfloat16 \
+            --kv-cache-dtype auto \
             --max-model-len 65536 \
             --gpu-memory-utilization 0.92 \
             --max-num-batched-tokens 131072 \
-            --enable-chunked-prefill \
             --max-num-seqs 512 \
-            --otlp-traces-endpoint="grpc://jaeger-collector.monitoring.svc.cluster.local:4317" \
-            --collect-detailed-traces all
+            --enable-chunked-prefill \
+            --enable-prefix-caching \
+            --disable-log-requests \
+            --otlp-traces-endpoint="grpc://jaeger-collector.monitoring.svc.cluster.local:4317"
 
       ports:
         - containerPort: 8000
@@ -78,10 +84,12 @@ spec:
           cpu: "32"
           memory: "300Gi"
           nvidia.com/gpu: 8
+          # rdma/rdma_shared_device: 4
         limits:
           cpu: "60"
           memory: "500Gi"
           nvidia.com/gpu: 8
+          # rdma/rdma_shared_device: 4
 
       volumeMounts:
         - name: dshm
@@ -89,32 +97,46 @@ spec:
         - name: model-cache
           mountPath: /root/.cache/huggingface
 
+      securityContext:
+        privileged: true
+        capabilities:
+          add:
+            - IPC_LOCK
+            - SYS_ADMIN
+
       env:
         - name: VLLM_HOST_IP
-          value: "10.15.35.65" # g327 IP
+          value: "10.15.31.25" # g258 IP
+
+        - name: GLOO_SOCKET_IFNAME
+          value: "enp157s0f0np0"
+        - name: TP_SOCKET_IFNAME
+          value: "enp157s0f0np0"
+        - name: NCCL_SOCKET_IFNAME
+          value: "enp157s0f0np0"
 
         - name: CUDA_VISIBLE_DEVICES
           value: "0,1,2,3,4,5,6,7"
         - name: NCCL_DEBUG
-          value: "INFO"
+          value: "WARN"
+        - name: NCCL_IB_HCA
+          value: "mlx5_0,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_9,mlx5_10,mlx5_11"
         - name: NCCL_IB_DISABLE
           value: "0"
-        - name: NCCL_SOCKET_IFNAME
-          value: "enp157s0f0np0"
-        - name: GLOO_SOCKET_IFNAME
-          value: "enp157s0f0np0"
+        - name: NCCL_NET_GDR_LEVEL
+          value: "SYS"
+        - name: NCCL_P2P_LEVEL
+          value: "PIX"
+        - name: NCCL_IB_GID_INDEX
+          value: "3"
+        - name: NCCL_IB_TIMEOUT
+          value: "22"
 
         - name: RAY_DEDUP_LOGS
           value: "0"
 
         - name: HF_HOME
           value: "/root/.cache/huggingface"
-
-        # PyTorch/CUDA optimizations
-        - name: PYTORCH_CUDA_ALLOC_CONF
-          value: "expandable_segments:True"
-        - name: CUDA_LAUNCH_BLOCKING
-          value: "0"
 
         - name: OTEL_SERVICE_NAME
           value: "kimi-k2-thinking"

@@ -7,7 +7,7 @@ metadata:
     app: ray-vllm
     role: worker
 spec:
-  # Pin to g328
+  # Pin to g268
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -16,11 +16,17 @@ spec:
               - key: kubernetes.io/hostname
                 operator: In
                 values:
-                  - g328
+                  - g268
 
   # Use host network for optimal InfiniBand performance
   hostNetwork: true
   dnsPolicy: ClusterFirstWithHostNet
+
+  # Tolerate Cilium taint (hostNetwork pods don't need Cilium networking)
+  tolerations:
+    - key: node.cilium.io/agent-not-ready
+      operator: Exists
+      effect: NoSchedule
 
   containers:
     - name: ray-worker
@@ -32,6 +38,11 @@ spec:
         - -c
         - |
           pip install -U vllm --pre --extra-index-url https://wheels.vllm.ai/nightly
+
+          # For debugging the IB interfaces
+          # apt-get update && apt-get install -y infiniband-diags perftest
+          # tail -f /dev/null
+
 
           bash /vllm-workspace/examples/online_serving/multi-node-serving.sh worker \
             --ray_address=$RAY_HEAD_IP \
@@ -54,23 +65,43 @@ spec:
         - name: model-cache
           mountPath: /root/.cache/huggingface
 
+      securityContext:
+        privileged: true
+        capabilities:
+          add:
+            - IPC_LOCK
+            - SYS_ADMIN
+
       env:
         - name: VLLM_HOST_IP
-          value: "10.15.35.73" # g328 IP
+          value: "10.15.31.105" # g268 IP
 
         - name: RAY_HEAD_IP
-          value: "10.15.35.65" # g327 IP
+          value: "10.15.31.25" # g258 IP
+
+        - name: GLOO_SOCKET_IFNAME
+          value: "enp157s0f0np0"
+        - name: TP_SOCKET_IFNAME
+          value: "enp157s0f0np0"
+        - name: NCCL_SOCKET_IFNAME
+          value: "enp157s0f0np0"
 
         - name: CUDA_VISIBLE_DEVICES
           value: "0,1,2,3,4,5,6,7"
         - name: NCCL_DEBUG
-          value: "INFO"
+          value: "WARN"
+        - name: NCCL_IB_HCA
+          value: "mlx5_0,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_9,mlx5_10,mlx5_11"
         - name: NCCL_IB_DISABLE
           value: "0"
-        - name: NCCL_SOCKET_IFNAME
-          value: "enp157s0f0np0"
-        - name: GLOO_SOCKET_IFNAME
-          value: "enp157s0f0np0"
+        - name: NCCL_NET_GDR_LEVEL
+          value: "SYS"
+        - name: NCCL_P2P_LEVEL
+          value: "PIX"
+        - name: NCCL_IB_GID_INDEX
+          value: "3"
+        - name: NCCL_IB_TIMEOUT
+          value: "22"
 
         - name: RAY_DEDUP_LOGS
           value: "0"
