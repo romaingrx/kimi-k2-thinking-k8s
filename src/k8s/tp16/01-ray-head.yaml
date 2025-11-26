@@ -44,7 +44,7 @@ spec:
             --ray_port=6379 \
             --ray_init_timeout=600
 
-          # Start vLLM server with TP=8 + PP=2 (recommended for 2 nodes)
+          # Start vLLM server with TP=16 (all GPUs) for maximum throughput
           vllm serve moonshotai/Kimi-K2-Thinking \
             --host 0.0.0.0 \
             --port 8000 \
@@ -54,13 +54,13 @@ spec:
             --tool-call-parser kimi_k2 \
             --reasoning-parser kimi_k2 \
             --trust-remote-code \
-            --max-model-len 8192 \
-            --gpu-memory-utilization 0.90 \
-            --max-num-batched-tokens 32768 \
-            --swap-space 32 \
-            --max-num-seqs 256 \
-            --otlp-traces-endpoint="grpc://jaeger-collector:4317"
-            # --enforce-eager # To remove when using it in production, just makes it faster to start the server
+            --max-model-len 32768 \
+            --gpu-memory-utilization 0.95 \
+            --max-num-batched-tokens 131072 \
+            --enable-chunked-prefill \
+            --max-num-seqs 512 \
+            --disable-log-requests \
+            --otlp-traces-endpoint="grpc://jaeger-collector.monitoring.svc.cluster.local:4317"
 
       ports:
         - containerPort: 8000
@@ -97,6 +97,8 @@ spec:
           value: "0,1,2,3,4,5,6,7"
         - name: NCCL_DEBUG
           value: "INFO"
+        - name: NCCL_IB_DISABLE
+          value: "0"
         - name: NCCL_SOCKET_IFNAME
           value: "enp157s0f0np0" # Use actual interface
         - name: GLOO_SOCKET_IFNAME
@@ -111,7 +113,7 @@ spec:
         - name: OTEL_SERVICE_NAME
           value: "kimi-k2-thinking"
         - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
-          value: "grpc://jaeger-collector:4317"
+          value: "grpc://jaeger-collector.monitoring.svc.cluster.local:4317"
         - name: OTEL_EXPORTER_OTLP_TRACES_INSECURE
           value: "true"
 
