@@ -1,0 +1,41 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dcgm-exporter-metrics
+  namespace: kube-nvidia
+data:
+  metrics.csv: |
+    # Format: DCGM_FI_<field_name>, <prometheus_name>, <help_text>
+
+    # Basic GPU Metrics
+    DCGM_FI_DEV_GPU_UTIL, DCGM_FI_DEV_GPU_UTIL, GPU utilization (in %).
+    DCGM_FI_DEV_MEM_COPY_UTIL, DCGM_FI_DEV_MEM_COPY_UTIL, Memory utilization (in %).
+    DCGM_FI_DEV_POWER_USAGE, DCGM_FI_DEV_POWER_USAGE, Power draw (in W).
+    DCGM_FI_DEV_GPU_TEMP, DCGM_FI_DEV_GPU_TEMP, GPU temperature (in C).
+    DCGM_FI_DEV_MEMORY_TEMP, DCGM_FI_DEV_MEMORY_TEMP, Memory temperature (in C).
+    DCGM_FI_DEV_SM_CLOCK, DCGM_FI_DEV_SM_CLOCK, SM clock frequency (in MHz).
+    DCGM_FI_DEV_MEM_CLOCK, DCGM_FI_DEV_MEM_CLOCK, Memory clock frequency (in MHz).
+    DCGM_FI_DEV_FB_USED, DCGM_FI_DEV_FB_USED, Framebuffer memory used (in MiB).
+    DCGM_FI_DEV_FB_FREE, DCGM_FI_DEV_FB_FREE, Framebuffer memory free (in MiB).
+
+    # Profiling Metrics - SM Activity
+    DCGM_FI_PROF_SM_ACTIVE, DCGM_FI_PROF_SM_ACTIVE, The ratio of cycles an SM has at least 1 warp assigned (in %).
+    DCGM_FI_PROF_SM_OCCUPANCY, DCGM_FI_PROF_SM_OCCUPANCY, The ratio of number of warps resident on an SM (in %).
+
+    # Profiling Metrics - Tensor Cores (CRITICAL!)
+    DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, Ratio of cycles the tensor (HMMA) pipe is active (in %).
+    DCGM_FI_PROF_PIPE_FP16_ACTIVE, DCGM_FI_PROF_PIPE_FP16_ACTIVE, Ratio of cycles the FP16 pipe is active (in %).
+    DCGM_FI_PROF_PIPE_FP32_ACTIVE, DCGM_FI_PROF_PIPE_FP32_ACTIVE, Ratio of cycles the FP32 pipe is active (in %).
+    DCGM_FI_PROF_PIPE_FP64_ACTIVE, DCGM_FI_PROF_PIPE_FP64_ACTIVE, Ratio of cycles the FP64 pipe is active (in %).
+
+    # DRAM Activity
+    DCGM_FI_PROF_DRAM_ACTIVE, DCGM_FI_PROF_DRAM_ACTIVE, Ratio of cycles the device memory interface is active sending or receiving data (in %).
+
+    # PCIe and NVLink
+    DCGM_FI_PROF_PCIE_TX_BYTES, DCGM_FI_PROF_PCIE_TX_BYTES, The number of bytes of active PCIe tx (transmit) data.
+    DCGM_FI_PROF_PCIE_RX_BYTES, DCGM_FI_PROF_PCIE_RX_BYTES, The number of bytes of active PCIe rx (read) data.
+    DCGM_FI_DEV_NVLINK_BANDWIDTH_TOTAL, DCGM_FI_DEV_NVLINK_BANDWIDTH_TOTAL, Total number of NVLink bandwidth counters for all lanes.
+
+    # Graphics Engine (should be 0 for compute workloads)
+    DCGM_FI_PROF_GR_ENGINE_ACTIVE, DCGM_FI_PROF_GR_ENGINE_ACTIVE, Ratio of time the graphics engine is active (in %).
