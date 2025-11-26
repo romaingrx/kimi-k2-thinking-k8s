@@ -1,3 +1,4 @@
+# Can be adapted to more NVMEs
 for i in {1..6}; do sudo pvcreate /dev/nvme${i}n1; done
 
 sudo vgcreate data_vg /dev/nvme{1..6}n1

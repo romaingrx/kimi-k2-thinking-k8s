@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ray-worker
+  namespace: vllm-kimi
+  labels:
+    app: ray-vllm
+    role: worker
+spec:
+  # Pin to g328
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                  - g328
+
+  # Use host network for optimal InfiniBand performance
+  hostNetwork: true
+  dnsPolicy: ClusterFirstWithHostNet
+
+  containers:
+    - name: ray-worker
+      image: vllm/vllm-openai:latest
+      imagePullPolicy: Always
+
+      command:
+        - /bin/bash
+        - -c
+        - |
+          # Install vLLM nightly with Kimi-K2 support
+          pip install -U vllm --pre --extra-index-url https://wheels.vllm.ai/nightly
+
+          # Use official vLLM multi-node serving script
+          bash /vllm-workspace/examples/online_serving/multi-node-serving.sh worker \
+            --ray_address=$RAY_HEAD_IP \
+            --ray_port=6379 \
+            --ray_init_timeout=600
+
+      resources:
+        requests:
+          cpu: "32"
+          memory: "300Gi"
+          nvidia.com/gpu: 8
+        limits:
+          cpu: "60"
+          memory: "500Gi"
+          nvidia.com/gpu: 8
+
+      volumeMounts:
+        - name: dshm
+          mountPath: /dev/shm
+        - name: model-cache
+          mountPath: /root/.cache/huggingface
+
+      env:
+        # vLLM host IP for Ray (CRITICAL for multi-node)
+        - name: VLLM_HOST_IP
+          value: "10.15.35.73" # g328 IP
+
+        # Ray head address (g327 node IP)
+        - name: RAY_HEAD_IP
+          value: "10.15.35.65"
+
+        # GPU configuration
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0,1,2,3,4,5,6,7"
+
+        # NCCL configuration - DISABLE InfiniBand for initial testing
+        - name: NCCL_DEBUG
+          value: "INFO"
+        - name: NCCL_IB_DISABLE
+          value: "1"
+        - name: NCCL_SOCKET_IFNAME
+          value: "enp157s0f0np0" # Use actual interface
+        - name: GLOO_SOCKET_IFNAME
+          value: "enp157s0f0np0"
+
+        # Ray configuration
+        - name: RAY_DEDUP_LOGS
+          value: "0"
+
+        # Hugging Face cache
+        - name: HF_HOME
+          value: "/root/.cache/huggingface"
+
+  volumes:
+    - name: dshm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 100Gi
+    - name: model-cache
+      hostPath:
+        path: /data/models/huggingface
+        type: DirectoryOrCreate
+
+  restartPolicy: Always
