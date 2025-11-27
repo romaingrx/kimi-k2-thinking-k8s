@@ -15,9 +15,9 @@ spec:
       port: 8000
       targetPort: 8000
       protocol: TCP
-      nodePort: 30800 # External access via g258:30800
+      # nodePort will be assigned randomly by Kubernetes (30000-32767)
     - name: ray-dashboard
       port: 8265
       targetPort: 8265
       protocol: TCP
-      nodePort: 30265 # Ray dashboard at g258:30265
+      # nodePort will be assigned randomly by Kubernetes

@@ -9,6 +9,7 @@ This project deploys the Kimi-K2-Thinking model using vLLM on a Kubernetes clust
 ## Development Setup
 
 ### Dependencies
+
 ```bash
 # Install Python dependencies (requires Python 3.13+)
 pip install -e ".[dev]"
@@ -18,13 +19,14 @@ pre-commit install
 ```
 
 ### Project Structure
+
 ```
 src/
 ├── k8s/                           # Kubernetes manifests
 │   └── tp8pp2/                    # TP=8, PP=2 configuration (16 GPUs)
 │       ├── 00-namespace.yaml      # vllm-kimi namespace
-│       ├── 01-ray-head.yaml       # Ray head pod (g327, 8 GPUs)
-│       ├── 02-ray-worker.yaml     # Ray worker pod (g328, 8 GPUs)
+│       ├── 01-ray-head.yaml       # Ray head pod (g258, 8 GPUs)
+│       ├── 02-ray-worker.yaml     # Ray worker pod (g268, 8 GPUs)
 │       └── 03-service.yaml        # vLLM API service
 └── kimi_k2_thinking_k8s/
     └── client.py                  # Test client for vLLM API
@@ -33,6 +35,7 @@ src/
 ### Kubernetes Operations
 
 **Deploy the vLLM cluster:**
+
 ```bash
 # Apply all manifests in order
 kubectl apply -f src/k8s/tp8pp2/00-namespace.yaml
@@ -45,6 +48,7 @@ kubectl apply -f src/k8s/tp8pp2/
 ```
 
 **Monitor deployment:**
+
 ```bash
 # Check pod status
 kubectl get pods -n vllm-kimi
@@ -60,6 +64,7 @@ kubectl get svc -n vllm-kimi
 ```
 
 **Testing the deployment:**
+
 ```bash
 # Port forward the service to localhost
 kubectl port-forward -n vllm-kimi svc/vllm-api-service 8000:8000
@@ -69,6 +74,7 @@ python src/kimi_k2_thinking_k8s/client.py --url http://localhost:8000/v1
 ```
 
 **Cleanup:**
+
 ```bash
 # Delete all resources
 kubectl delete -f src/k8s/tp8pp2/
@@ -78,6 +84,7 @@ kubectl delete namespace vllm-kimi
 ```
 
 ### Running Tests
+
 ```bash
 # Run all tests
 pytest
@@ -87,6 +94,7 @@ pytest -v
 ```
 
 ### Code Quality
+
 ```bash
 # Format code
 ruff format .
@@ -102,7 +110,9 @@ pre-commit run --all-files
 ```
 
 ### Git Commit Convention
+
 This project uses conventional commits enforced by pre-commit hooks:
+
 - `feat:` - New features
 - `fix:` - Bug fixes
 - `chore:` - Maintenance tasks
@@ -112,41 +122,49 @@ This project uses conventional commits enforced by pre-commit hooks:
 ## Architecture Overview
 
 ### Multi-Node Distributed Serving
+
 The deployment uses a **two-node Ray cluster** with pipeline parallelism for high throughput:
 
-**Ray Head (g327):**
+**Ray Head (g258):**
+
 - Runs Ray GCS server and vLLM server entrypoint
 - Handles API requests on port 8000
 - Uses 8 GPUs for tensor parallelism (TP=8)
 - Model loading and inference coordination
 
-**Ray Worker (g328):**
+**Ray Worker (g268):**
+
 - Connects to Ray head via Ray cluster
 - Provides 8 additional GPUs for pipeline stage 2
 - Handles pipeline-parallel model shards
 
 **Communication:**
+
 - Ray cluster coordination via port 6379
 - Inter-GPU communication via NCCL (disabled InfiniBand initially, using Ethernet)
 - Host networking enabled for optimal performance
 
 ### vLLM Configuration Strategy
+
 The manifests configure vLLM with:
+
 - `--tensor-parallel-size 8`: Split model across 8 GPUs per node
 - `--pipeline-parallel-size 2`: Pipeline across 2 nodes (head + worker)
 - `--distributed-executor-backend ray`: Use Ray for multi-node coordination
 - Model caching on local NVMe (`/data/models/huggingface` on both nodes)
 
 ### Critical Design Decisions
+
 1. **Host networking**: Enabled for optimal InfiniBand/RDMA performance
 2. **Shared memory**: 100Gi `/dev/shm` for tensor-parallel NCCL operations
-3. **Node affinity**: Hard-pinned to g327/g328 for consistent performance
+3. **Node affinity**: Hard-pinned to g258/g268 for consistent performance
 4. **Model caching**: HostPath volumes to 17TB NVMe on each node
 5. **Resource limits**: 8 GPUs, 300-500Gi RAM, 32-60 CPUs per pod
 
 ## Infrastructure Analysis
 
 ### Cluster Overview
+
 **Kubernetes Version:** v1.33.5
 **CNI:** Cilium
 **Container Runtime:** containerd 1.7.28
@@ -154,12 +172,15 @@ The manifests configure vLLM with:
 ### Nodes
 
 #### Control Plane Nodes (3)
+
 - `control-plane-i-00c28e56c448b6b5e` (10.105.23.63)
 - `control-plane-i-02b5cb1ed447ec100` (10.105.8.136)
 - `control-plane-i-05657673530811362` (10.105.33.180)
 
 #### Worker Nodes (2) - GPU Nodes
-**Node: g327**
+
+**Node: g258**
+
 - Internal IP: 10.15.35.65
 - Machine: Dell PowerEdge XE9680
 - OS: Ubuntu 22.04.5 LTS
@@ -174,7 +195,8 @@ The manifests configure vLLM with:
 - RDMA: Capable
 - Topology: cluster3/rack5
 
-**Node: g328**
+**Node: g268**
+
 - Internal IP: 10.15.35.73
 - Machine: Dell PowerEdge XE9680
 - OS: Ubuntu 22.04.5 LTS
@@ -194,8 +216,10 @@ The manifests configure vLLM with:
 ### GPU Infrastructure
 
 #### NVIDIA Device Plugin
+
 ✅ **Status:** Running and operational
 **DaemonSets in kube-nvidia namespace:**
+
 - `nvidia-device-plugin-daemonset` (2/2 running)
 - `nvidia-container-toolkit-daemonset` (2/2 running)
 - `nvidia-dcgm-exporter` (2/2 running)
@@ -204,30 +228,36 @@ The manifests configure vLLM with:
 - `nvidia-operator-validator` (2/2 running)
 
 #### GPU Configuration
+
 - **MIG Mode:** Disabled (all-disabled)
 - **MPS Mode:** Not capable/not enabled
 - **Sharing Strategy:** None (exclusive GPU access)
 - **Driver:** Pre-installed (not managed by operator)
 
 ### Network Infrastructure
+
 - **RDMA Capable:** Yes (InfiniBand available)
 - **Inter-node networking:** High-speed, suitable for distributed training/serving
-- **Pod CIDR g327:** 192.168.4.0/24
-- **Pod CIDR g328:** 192.168.3.0/24
+- **Pod CIDR g258:** 192.168.4.0/24
+- **Pod CIDR g268:** 192.168.3.0/24
 
 ### Existing Operators/CRDs
+
 - **MPI Operator:** Installed (kubeflow.org/mpijobs)
 - **Ray Operator:** Not installed (needs to be added)
 
 ### Storage Classes
+
 No storage classes found in cluster.
 
 **Available Storage:**
+
 - **17TB in /data on both nodes** (aggregated NVMe arrays) ⭐
 - Ephemeral storage: ~440GB per node
 - Strategy: Use hostPath volumes pointing to /data for model caching
 
 ### Namespaces
+
 - default
 - kube-system
 - kube-nvidia
@@ -240,12 +270,14 @@ No storage classes found in cluster.
 ## Kimi-K2-Thinking Requirements
 
 ### Model Specifications
+
 **Model:** moonshotai/Kimi-K2-Thinking
 **Minimum Requirements:** 8x H200/H20 GPUs (we have 16x H100-80GB ✅)
 
 ### vLLM Configuration Requirements
 
 #### For Low Latency (Single Node - 8 GPUs)
+
 ```bash
 vllm serve moonshotai/Kimi-K2-Thinking \
   --tensor-parallel-size 8 \
@@ -256,6 +288,7 @@ vllm serve moonshotai/Kimi-K2-Thinking \
 ```
 
 #### For High Throughput (Multi-Node - 16 GPUs) ⭐ RECOMMENDED
+
 ```bash
 vllm serve moonshotai/Kimi-K2-Thinking \
   --tensor-parallel-size 8 \
@@ -268,6 +301,7 @@ vllm serve moonshotai/Kimi-K2-Thinking \
 ```
 
 **Performance Gains with DCP:**
+
 - 43.1% faster token throughput
 - 25.6% higher request throughput
 
@@ -278,13 +312,13 @@ vllm serve moonshotai/Kimi-K2-Thinking \
 ```
 Ray Cluster Layout:
 ┌─────────────────────────────────────────┐
-│  Ray Head Pod (on g327)                 │
+│  Ray Head Pod (on g258)                 │
 │  ├─ Ray head service                    │
 │  ├─ vLLM server process                 │
 │  ├─ 8x H100 GPUs                        │
 │  └─ Resource: nvidia.com/gpu: 8         │
 ├─────────────────────────────────────────┤
-│  Ray Worker Pod (on g328)               │
+│  Ray Worker Pod (on g268)               │
 │  ├─ Ray worker node                     │
 │  ├─ vLLM worker process                 │
 │  ├─ 8x H100 GPUs                        │
@@ -300,6 +334,7 @@ Configuration:
 ### Key Configuration Parameters
 
 **vLLM Flags:**
+
 - `--tensor-parallel-size 8`: Distribute model across 8 GPUs per node
 - `--pipeline-parallel-size 2`: Pipeline across 2 nodes
 - `--decode-context-parallel-size 8`: Parallel decoding for throughput
@@ -309,6 +344,7 @@ Configuration:
 - `--trust-remote-code`: Required for custom model code
 
 **Resource Requirements:**
+
 - CPU: ~16-32 cores per pod
 - Memory: ~200-400GB per pod
 - Shared Memory: Large /dev/shm volume (essential for tensor parallel)
@@ -323,14 +359,14 @@ Configuration:
 
 3. **Ray Cluster Setup:**
    - Ray head service for discovery
-   - Ray head pod on g327
-   - Ray worker pod on g328
+   - Ray head pod on g258
+   - Ray worker pod on g268
    - Both connected via Ray cluster
 
 4. **vLLM Deployment:**
    - Deploy as part of Ray pods
    - Mount /dev/shm as emptyDir with large size
-   - Configure node affinity to pin pods to g327/g328
+   - Configure node affinity to pin pods to g258/g268
    - Set up liveness/readiness probes
 
 5. **Service Exposure:**
@@ -342,6 +378,7 @@ Configuration:
 ### Critical Kubernetes Configurations
 
 **Shared Memory:**
+
 ```yaml
 volumes:
   - name: dshm
@@ -351,6 +388,7 @@ volumes:
 ```
 
 **GPU Resource Request:**
+
 ```yaml
 resources:
   limits:
@@ -360,19 +398,21 @@ resources:
 ```
 
 **Node Affinity:**
+
 ```yaml
 affinity:
   nodeAffinity:
     requiredDuringSchedulingIgnoredDuringExecution:
       nodeSelectorTerms:
-      - matchExpressions:
-        - key: kubernetes.io/hostname
-          operator: In
-          values:
-          - g327  # or g328
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - g258 # or g268
 ```
 
 ### Health Checks
+
 ```yaml
 livenessProbe:
   httpGet:
@@ -392,11 +432,13 @@ readinessProbe:
 ## Network and Security Considerations
 
 ### RDMA Benefits
+
 - Ultra-low latency for inter-GPU communication
 - Critical for pipeline parallelism across nodes
 - Infinband available on both nodes
 
 ### Security
+
 - No MIG isolation configured (full GPU access)
 - Pods will have exclusive GPU access
 - Consider network policies for production
@@ -416,9 +458,10 @@ readinessProbe:
 
 **Selected Strategy: HostPath on /data** ⭐
 
-Both g327 and g328 have 17TB aggregated NVMe storage mounted at /data.
+Both g258 and g268 have 17TB aggregated NVMe storage mounted at /data.
 
 **Implementation:**
+
 ```yaml
 volumes:
   - name: model-cache
@@ -428,6 +471,7 @@ volumes:
 ```
 
 **Benefits:**
+
 - 17TB available space (plenty for models)
 - Fast NVMe performance
 - Persistent across pod restarts
@@ -435,14 +479,16 @@ volumes:
 - Models cached locally on each node
 
 **Model Paths:**
-- g327: `/data/models/huggingface` → mounted to `/root/.cache/huggingface` in pod
-- g328: `/data/models/huggingface` → mounted to `/root/.cache/huggingface` in pod
+
+- g258: `/data/models/huggingface` → mounted to `/root/.cache/huggingface` in pod
+- g268: `/data/models/huggingface` → mounted to `/root/.cache/huggingface` in pod
 
 **Note:** Model will be downloaded once per node (~100GB+ for Kimi-K2-Thinking), then cached for subsequent pod restarts.
 
 ## Estimated Resource Usage
 
 **Per Pod:**
+
 - GPUs: 8x H100-80GB
 - CPU: ~20-30 cores (requests), 50+ for limits
 - Memory: ~300GB (model weights + KV cache + activations)
@@ -450,6 +496,7 @@ volumes:
 - Shared Memory: ~50-100GB
 
 **Total Cluster:**
+
 - 16 GPUs (fully utilized)
 - ~40-60 CPU cores
 - ~600GB RAM

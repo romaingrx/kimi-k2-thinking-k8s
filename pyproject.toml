@@ -9,6 +9,8 @@ license = "MIT"
 license-files = ["LICENSE"]
 
 dependencies = [
+    "aiohttp>=3.13.2",
+    "numpy>=2.3.5",
     "openai>=2.8.1",
 ]
 
